@@ -17,7 +17,7 @@ def edgeboxes(im):
 
     edge_boxes = cv2.ximgproc.createEdgeBoxes()
     edge_boxes.setMaxBoxes(30)
-    boxes = edge_boxes.getBoundingBoxes(edges, orimap)
+    boxes, s = edge_boxes.getBoundingBoxes(edges, orimap)
 
     for b in boxes:
         x, y, w, h = b
@@ -25,6 +25,45 @@ def edgeboxes(im):
 
     return im
 
+def selective_search_regions(img, num_regions=100, mode='fast'):
+    """
+    Apply Selective Search to an image and draw bounding boxes around proposed regions.
+    
+    Args:
+        image_path (str): Path to the input image.
+        num_regions (int): Number of top region proposals to draw.
+        mode (str): 'fast' for faster processing, 'quality' for more proposals (slower).
+    
+    Returns:
+        img_with_boxes (numpy.ndarray): Image with rectangles drawn.
+    """
+    # Load image
+    # img = cv2.imread(image_path)
+    if img is None:
+        raise ValueError(f"Could not load image from {image_path}")
+    
+    # Create Selective Search segmentation object
+    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
+    ss.setBaseImage(img)
+    
+    # Set mode
+    if mode == 'fast':
+        ss.switchToSelectiveSearchFast()
+    elif mode == 'quality':
+        ss.switchToSelectiveSearchQuality()
+    else:
+        raise ValueError("mode must be 'fast' or 'quality'")
+    
+    # Run selective search
+    rects = ss.process()
+    print(f"Total region proposals: {len(rects)}")
+    
+    # Draw top N region proposals
+    img_with_boxes = img.copy()
+    for i, (x, y, w, h) in enumerate(rects[:num_regions]):
+        cv2.rectangle(img_with_boxes, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    
+    return img_with_boxes
 
 folder = '/dtu/datasets1/02516/potholes/images'
 
@@ -82,6 +121,9 @@ cv2.imwrite("testKmeansImage.png", segmented_rgb)
 cv2.imwrite("edgeboxes.png", edgeboxes(img))
 cv2.imwrite("Kmeans-edgeboxes.png", edgeboxes(segmented_rgb))
 cv2.imwrite("meanshift-edgeboxes.png", edgeboxes(clustered_rgb))
+cv2.imwrite("SelectiveSearch.png", selective_search_regions(img, num_regions=20, mode='fast'))
+
+
 
 print(f"Loaded: {img_name}, Shape: {img.shape}")
 
