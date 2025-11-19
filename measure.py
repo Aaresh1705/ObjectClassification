@@ -1,6 +1,6 @@
 import torch
-
-
+import numpy as np
+import cv2
 def pairwise_iou(gt_boxes, prop_boxes):
     """
     gt_boxes:   Tensor [N, 4]
@@ -108,13 +108,20 @@ if __name__ == "__main__":
     loader = DataLoader(PotholeDataset(), batch_size=4, shuffle=True, collate_fn=lambda x: x)
     
     batch = next(iter(loader))
-    for sample in batch:
+    from SelectiveSearch import selective_search_regions, edgeboxes
+    for i, sample in enumerate(batch):
         dataset = PotholeDataset()
         image = sample["image"]
         gt_boxes = sample["boxes"]
-        proposals = torch.tensor([[50, 50, 150, 150],
-                                  [200, 200, 300, 300],
-                                  [120, 120, 180, 180]], dtype=torch.float32)
-    visualize_best_proposals(image, gt_boxes, proposals, iou_threshold=0.).save("images/visualized_proposals.png")
+        print(f"image {image}, gt_boxes {gt_boxes}")
+        # proposals = torch.tensor([[50, 50, 150, 150],
+        #                           [200, 200, 300, 300],
+        #                           [120, 120, 180, 180]], dtype=torch.float32)
+        #change to numpy fro PIL image
+        image = image.convert("RGB")
+        image_np = np.array(image)
+        proposals,image_with_boxes = selective_search_regions(image_np)  # or edgeboxes(image_np)
+        cv2.imwrite(f"images/selective_search_output_{i}.png", image_with_boxes)
+        visualize_best_proposals(image, gt_boxes, proposals, iou_threshold=0.1).save(f"images/visualized_proposals_{i}.png")
     
     
