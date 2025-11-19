@@ -59,11 +59,20 @@ def selective_search_regions(img, num_regions=100, mode='fast'):
     print(f"Total region proposals: {len(rects)}")
     
     # Draw top N region proposals
+    # Draw boxes and convert to top-left/bottom-right
     img_with_boxes = img.copy()
-    for i, (x, y, w, h) in enumerate(rects[:num_regions]):
-        cv2.rectangle(img_with_boxes, (x, y), (x + w, y + h), (0, 255, 0), 2)
+    bboxes = []
     
-    return img_with_boxes
+    for i, (x, y, w, h) in enumerate(rects[:num_regions]):
+        x1, y1 = x, y
+        x2, y2 = x + w, y + h
+        bboxes.append([x1, y1, x2, y2])
+        cv2.rectangle(img_with_boxes, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    
+    # Convert to PyTorch tensor
+    bboxes_tensor = torch.tensor(bboxes, dtype=torch.float32)
+    
+    return bboxes_tensor
 
 folder = '/dtu/datasets1/02516/potholes/images'
 
