@@ -1,23 +1,120 @@
-import torch 
+import torch
 
-def intersection_over_union(y_pred: torch.Tensor, y_true: torch.Tensor, smooth=1e-6):
-    """Computes Intersection over Union (IoU) between predicted and true masks
-    Args:
-        y_pred (torch.Tensor): Predicted segmentation masks
-        y_true (torch.Tensor): Ground truth segmentation masks
-        smooth (float): Smoothing factor to avoid division by zero
-    Returns:
-        float: IoU score
+
+def pairwise_iou(gt_boxes, prop_boxes):
     """
-    if y_true.ndim == 3:
-        y_true = y_true.unsqueeze(1)
-    # Ensure correct shape
-    assert y_pred.shape == y_true.shape, "Shape mismatch between predictions and ground truth"
-    # Apply sigmoid to convert logits → probabilities
-    y_pred = torch.sigmoid(y_pred) 
-    # Flatten across spatial dimensions
-    intersection = (y_pred * y_true).sum(dim=(2, 3))
-    union = y_pred.sum(dim=(2, 3)) + y_true.sum(dim=(2, 3)) - intersection
-    # Compute IoU
-    iou = (intersection + smooth) / (union + smooth)
-    return iou.mean().item()
+    gt_boxes:   Tensor [N, 4]
+    prop_boxes: Tensor [M, 4]
+
+    Returns IoU matrix of size [N, M]
+    This matrix can be interpreted as:
+        iou_matrix[i, j] = IoU between gt_boxes[i] and prop_boxes[j]
+    """
+    if not isinstance(gt_boxes, torch.Tensor):
+        gt_boxes = torch.tensor(gt_boxes, dtype=torch.float32)
+    if not isinstance(prop_boxes, torch.Tensor):
+        prop_boxes = torch.tensor(prop_boxes, dtype=torch.float32)
+
+    # Expand dims for broadcasting: [N,1,4] and [1,M,4]
+    # We need to make the shapes match to use pytorch broadcasting
+    A = gt_boxes[:, None, :]  # [N, 1, 4]
+    B = prop_boxes[None, :, :]  # [1, M, 4]
+
+    # Intersection coordinates
+    # Finding maximum of xmins and ymins, minimum of xmaxs and ymaxs
+    xA = torch.maximum(A[:,:, 0], B[:,:, 0])
+    yA = torch.maximum(A[:,:, 1], B[:,:, 1])
+    xB = torch.minimum(A[:,:, 2], B[:,:, 2])
+    yB = torch.minimum(A[:,:, 3], B[:,:, 3])
+
+    interW = (xB - xA).clamp(min=0)
+    interH = (yB - yA).clamp(min=0)
+    inter_area = interW * interH
+
+    # Area of each GT and proposal
+    areaA = (A[:,:, 2] - A[:,:, 0]) * (A[:,:, 3] - A[:,:, 1])
+    areaB = (B[:,:, 2] - B[:,:, 0]) * (B[:,:, 3] - B[:,:, 1])
+
+    # Union
+    union = areaA + areaB - inter_area
+
+    return inter_area / union.clamp(min=1e-6)
+
+from PIL import ImageDraw, ImageFont
+
+def visualize_best_proposals(image, gt_boxes, proposals, iou_threshold=0.0):
+    """
+    image:      PIL Image
+    gt_boxes:   tensor/list of ground-truth boxes [N,4]
+    proposals:  tensor/list of proposal boxes [M,4]
+
+    Returns: PIL image with GT boxes (green) and best proposal (red) + IoU label
+    """
+    import torch
+
+    # Ensure tensors
+    if not isinstance(gt_boxes, torch.Tensor):
+        gt_boxes = torch.tensor(gt_boxes, dtype=torch.float32)
+    if not isinstance(proposals, torch.Tensor):
+        proposals = torch.tensor(proposals, dtype=torch.float32)
+
+    # Compute pairwise IoUs:  [N, M]
+    ious = pairwise_iou(gt_boxes, proposals)
+
+    # Copy image for drawing
+    img = image.copy()
+    draw = ImageDraw.Draw(img)
+
+    # Try loading a font (fallback to default if not found)
+    try:
+        font = ImageFont.truetype("arial.ttf", 16)
+    except:
+        font = ImageFont.load_default()
+
+    # Colors
+    gt_color = "green"
+    best_color = "red"
+
+    for i, gt in enumerate(gt_boxes):
+        gt = gt.tolist()
+
+        # Draw GT box
+        draw.rectangle(gt, outline=gt_color, width=3)
+
+        # Find best proposal for this GT box
+        best_idx = torch.argmax(ious[i]).item()
+        best_iou = ious[i, best_idx].item()
+        best_box = proposals[best_idx].tolist()
+
+        # Skip very low IoU matches if desired
+        if best_iou <= iou_threshold:
+            continue
+
+        # Draw best proposal box
+        draw.rectangle(best_box, outline=best_color, width=3)
+
+        # Annotate IoU
+        text = f"IoU={best_iou:.2f}"
+        text_x, text_y = gt[0], gt[1] - 15
+        draw.text((text_x, text_y), text, fill=best_color, font=font)
+
+    return img
+
+
+
+if __name__ == "__main__":
+    from torch.utils.data import DataLoader
+    from datasets import PotholeDataset
+    loader = DataLoader(PotholeDataset(), batch_size=4, shuffle=True, collate_fn=lambda x: x)
+    
+    batch = next(iter(loader))
+    for sample in batch:
+        dataset = PotholeDataset()
+        image = sample["image"]
+        gt_boxes = sample["boxes"]
+        proposals = torch.tensor([[50, 50, 150, 150],
+                                  [200, 200, 300, 300],
+                                  [120, 120, 180, 180]], dtype=torch.float32)
+    visualize_best_proposals(image, gt_boxes, proposals, iou_threshold=0.).save("images/visualized_proposals.png")
+    
+    

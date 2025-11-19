@@ -8,7 +8,7 @@ from extract_metadata import read_content
 from PIL import ImageDraw
 
 class PotholeDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
+    def __init__(self, root_dir="/dtu/datasets1/02516/potholes", transform=None):
         """
         root_dir: the path containing 'images' and 'annotations'
         """
