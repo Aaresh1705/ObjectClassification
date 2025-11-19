@@ -24,8 +24,16 @@ def edge_boxes(img):
     edge_boxes.setMaxBoxes(30)
     boxes, scores = edge_boxes.getBoundingBoxes(edges, orimap)
 
-    print(type(boxes), type(edges))
-    return boxes, edges
+    boxes_xyxy = []
+
+    for (x, y, w, h) in boxes:
+        x1 = x
+        y1 = y
+        x2 = x + w
+        y2 = y + h
+        boxes_xyxy.append([x1, y1, x2, y2])
+
+    return boxes_xyxy, edges
 
 
 if __name__ == '__main__':
@@ -35,8 +43,8 @@ if __name__ == '__main__':
     box_list, edge_image = edge_boxes(image)
 
     image_w_boxes = image.copy()
-    for (x, y, w, h) in box_list:
-        cv.rectangle(image_w_boxes, (x, y), (x+w, y+h), (0, 255, 0), 1, cv.LINE_AA)
+    for (x1, y1, x2, y2) in box_list:
+        cv.rectangle(image_w_boxes, (x1, y1), (x2, y2), (0, 255, 0), 1, cv.LINE_AA)
 
     plt.figure(figsize=(10, 5))
 
