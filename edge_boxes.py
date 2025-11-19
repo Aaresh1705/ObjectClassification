@@ -8,7 +8,7 @@ import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
 
-def edge_box(img):
+def edge_boxes(img):
     model = 'model.yml.gz'
 
     edge_detection = cv.ximgproc.createStructuredEdgeDetection(model)
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     images = glob('/dtu/datasets1/02516/potholes/images/*.png')
     image = cv.imread(images[10])
 
-    box_list, edge_image = edge_box(image)
+    box_list, edge_image = edge_boxes(image)
 
     image_w_boxes = image.copy()
     for (x, y, w, h) in box_list:
