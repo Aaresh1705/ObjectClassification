@@ -24,11 +24,29 @@ class PotholeDataset(Dataset):
     def __len__(self):
         return len(self.annotation_files)
 
+    def filter_small_boxes(self, boxes_list, min_size=5):
+        filtered_boxes = []
+        
+        for box in boxes_list:
+            x_min, y_min, x_max, y_max = box
+            
+            # Calculate width and height
+            width = x_max - x_min
+            height = y_max - y_min
+            
+            # Check if both dimensions meet or exceed the minimum size
+            if width >= min_size and height >= min_size:
+                filtered_boxes.append(box)
+                
+        return filtered_boxes
+
     def __getitem__(self, idx):
         xml_path = self.annotation_files[idx]
 
         # Read annotation
         filename, boxes = read_content(xml_path)
+
+        boxes = self.filter_small_boxes(boxes)
 
         # Image
         img_path = os.path.join(self.img_dir, filename)
@@ -94,3 +112,33 @@ if __name__ == "__main__":
         sample["image"].save(f"images/sample_{sample['filename']}")
         img_with_boxes = draw_boxes(sample["image"], sample["boxes"])
         img_with_boxes.save(f"images/sample_boxes_{sample['filename']}")
+
+    # minx = 600
+    # miny=600
+    # filename = ""
+    # bbox = []
+    # for batch in loader:
+    #     for sample in batch:
+    #         #print the size of the boxes.
+    #         boxes = sample['boxes']
+    #         file = sample['filename']
+    
+    #         for box in boxes:
+    #             horizontal_diff = abs(box[2] - box[0])
+            
+    #             vertical_diff = abs(box[3] - box[1])
+    #             if horizontal_diff < minx and horizontal_diff > 1:
+    #                 minx = horizontal_diff
+    #                 filename = file
+    #                 bbox = boxes
+    #             if vertical_diff < miny and vertical_diff > 1:
+    #                 miny = vertical_diff
+    #                 filename = file
+    #                 bbox = boxes
+
+    # img = Image.open('/dtu/datasets1/02516/potholes/images/'+filename)
+    # img2 = draw_boxes(img,bbox)
+    # img2.save('image123.png')
+
+    # print(minx,miny)    
+    # print(filename)
