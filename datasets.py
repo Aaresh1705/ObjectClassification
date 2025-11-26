@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from extract_metadata import read_content
 from PIL import ImageDraw
-
+from torchvision import transforms
 class PotholeDataset(Dataset):
     def __init__(self, root_dir="/dtu/datasets1/02516/potholes", transform=None):
         """
@@ -79,6 +79,46 @@ def draw_boxes(image, boxes, colors=None, width=3):
 
     return img
 
+class PotholeCropDataset(Dataset):
+    def __init__(self, root_dir="/dtu/datasets1/02516/potholes", transform=None):
+        self.img_dir = os.path.join(root_dir, "images")
+        self.ann_dir = os.path.join(root_dir, "annotations")
+        self.transform = transform
+
+        self.samples = []  # (img_path, box, filename)
+
+        annotation_files = sorted(glob.glob(os.path.join(self.ann_dir, "*.xml")))
+        if len(annotation_files) == 0:
+            raise RuntimeError("No XML annotation files found!")
+
+        for xml_path in annotation_files:
+            filename, boxes = read_content(xml_path)
+            img_path = os.path.join(self.img_dir, filename)
+
+            for box in boxes:
+                self.samples.append((img_path, box, filename))
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img_path, box, filename = self.samples[idx]
+
+        img = Image.open(img_path).convert("RGB")
+
+        xmin, ymin, xmax, ymax = box
+        crop = img.crop((xmin, ymin, xmax, ymax))
+
+        if self.transform:
+            crop = self.transform(crop)
+
+        return {
+            "image": crop,                        # Tensor [3, H, W]
+            "box": torch.tensor(box),             # original box
+            "filename": filename
+        }
+
+
 
 root = "/dtu/datasets1/02516/potholes"
 
@@ -88,9 +128,14 @@ loader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=lambda x: x)
 
 if __name__ == "__main__":
     batch = next(iter(loader))
-
-    for sample in batch:
-        print(sample["filename"], sample["boxes"].shape)
-        sample["image"].save(f"images/sample_{sample['filename']}")
-        img_with_boxes = draw_boxes(sample["image"], sample["boxes"])
-        img_with_boxes.save(f"images/sample_boxes_{sample['filename']}")
+    
+    crop_batch = next(iter(crop_loader))
+    for i, sample in enumerate(crop_batch):
+        print(sample["filename"], sample["box"].shape)
+        sample["image"].save(f"images/crop_sample_{i}_{sample['filename']}")
+        
+    # for sample in batch:
+    #     print(sample["filename"], sample["boxes"].shape)
+    #     sample["image"].save(f"images/sample_{sample['filename']}")
+    #     img_with_boxes = draw_boxes(sample["image"], sample["boxes"])
+    #     img_with_boxes.save(f"images/sample_boxes_{sample['filename']}")
