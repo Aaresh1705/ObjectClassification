@@ -97,6 +97,16 @@ def visualize_best_proposals(image, gt_boxes, proposals, iou_threshold=0.0):
         text = f"IoU={best_iou:.2f}"
         text_x, text_y = gt[0], gt[1] - 15
         draw.text((text_x, text_y), text, fill=best_color, font=font)
+        
+    #Annotate which color is whhat with white background
+    legend_bg_height = 50
+    legend_bg_width = 100
+    draw.rectangle([0, 0, legend_bg_width, legend_bg_height], fill="white")
+    legend_y = 10
+    draw.text((10, legend_y), "GT Box", fill=gt_color, font=font)
+    legend_y += 20
+    draw.text((10, legend_y), "Best Proposal", fill=best_color, font=font)
+    legend_y += 20
 
     return img
 
