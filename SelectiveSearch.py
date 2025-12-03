@@ -4,6 +4,7 @@ import random
 import numpy as np
 import sys
 import torch
+import time
 
 def edgeboxes(im):
     model = 'model.yml.gz'
@@ -81,9 +82,9 @@ if __name__ == "__main__":
     img_name = random.choice(files)
     img_path = os.path.join(folder, img_name)
 
-    img = cv2.imread(img_path)
+    img = cv2.imread('/dtu/datasets1/02516/potholes/images/potholes485.png')
 
-    cv2.imwrite("testimage.png", img)
+    #cv2.imwrite("testimage.png", img)
 
     # --- 2. Define Parameters ---
     # spatialRadius (sp): Defines the neighborhood size for spatial grouping. 
@@ -105,7 +106,7 @@ if __name__ == "__main__":
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     clustered_rgb = cv2.cvtColor(clustered_img, cv2.COLOR_BGR2RGB)
 
-    cv2.imwrite("testClusteredImage.png", clustered_rgb)
+    #cv2.imwrite("testClusteredImage.png", clustered_rgb)
 
 
     Z = img.reshape((-1, 3))
@@ -123,15 +124,18 @@ if __name__ == "__main__":
     center = np.uint8(center)
     res = center[label.flatten()]
     segmented_image = res.reshape((img.shape))
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    #img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     segmented_rgb = cv2.cvtColor(segmented_image, cv2.COLOR_BGR2RGB)
     cv2.imwrite("testKmeansImage.png", segmented_rgb)
 
 
-    cv2.imwrite("edgeboxes.png", edgeboxes(img))
-    cv2.imwrite("Kmeans-edgeboxes.png", edgeboxes(segmented_rgb))
-    cv2.imwrite("meanshift-edgeboxes.png", edgeboxes(clustered_rgb))
-    cv2.imwrite("SelectiveSearch.png", selective_search_regions(img, num_regions=20, mode='fast'))
+    #cv2.imwrite("edgeboxes.png", edgeboxes(img))
+    #cv2.imwrite("Kmeans-edgeboxes.png", edgeboxes(segmented_rgb))
+    #cv2.imwrite("meanshift-edgeboxes.png", edgeboxes(clustered_rgb))
+    t = time.time()
+    a, v = selective_search_regions(img, num_regions=100, mode='fast')
+    print(time.time() - t)
+    cv2.imwrite("SelectiveSearch.png", v)
 
 
 

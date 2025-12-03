@@ -53,12 +53,12 @@ def visualize(t, edge_image, proposed_image):
 
 
 if __name__ == '__main__':
-    images = glob('/dtu/datasets1/02516/potholes/images/potholes485.png')
+    images = glob('/dtu/datasets1/02516/potholes/images/potholes58.png')
     for image_file in images:
         image = cv2.imread(image_file)
 
         t1 = time.time()
-        box_list, edge_image = edge_boxes(image.copy(), 100)
+        box_list, edge_image = edge_boxes(image.copy(), 10)
         print(time.time() - t1)
 
         image_w_boxes = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
