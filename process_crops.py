@@ -216,7 +216,7 @@ def cropDataLoader(batch_size=64, transform =None, train_ratio =0.7, val_ratio=0
     val_len = int(total_len * val_ratio)
     test_len = total_len - train_len - val_len
     dataset = CropDataset("./ss_crops", transform=None)
-    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_len, val_len, test_len])
+    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_len, val_len, test_len], generator=torch.Generator().manual_seed(42))
     
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False)
@@ -225,12 +225,9 @@ def cropDataLoader(batch_size=64, transform =None, train_ratio =0.7, val_ratio=0
     
 
 if __name__ == "__main__":
-    dataset = CropDataset("./ss_crops")
+    # dataset = CropDataset("./ss_crops")
 
     (train_loader, val_loader, test_loader), (train_set, val_set, test_set) = cropDataLoader(batch_size=32)
-    import pdb;pdb.set_trace()
-    img,label = next(iter(train_loader))
-    print(f"Dataset size: {len(dataset)}")
 
-    img, label = dataset[0]
-    print(img, label)
+    img, label = next(iter(test_loader))
+    print(label)

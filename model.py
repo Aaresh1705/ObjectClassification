@@ -17,12 +17,7 @@ def get_vgg16_model(pretrained: bool=False, custom_weights: str='') -> nn.Module
         # print(model.features)
         # print(model.classifier)
 
-        """
-        160/2⁵ = 5
-        5 * 5 * 512 = 12800
-        """
-
-        model.classifier[0] = nn.Linear(12800, 4096)
+        model.classifier[0] = nn.Linear(25088, 4096)
         model.classifier[6] = nn.Linear(in_features=4096, out_features=2)
 
         for param in model.classifier.parameters():
