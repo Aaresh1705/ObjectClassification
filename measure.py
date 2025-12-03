@@ -1,3 +1,4 @@
+from tkinter import Image
 import torch
 import numpy as np
 import cv2
@@ -122,16 +123,17 @@ if __name__ == "__main__":
     for i, sample in enumerate(batch):
         dataset = PotholeDataset()
         image = sample["image"]
+
         gt_boxes = sample["boxes"]
         print(f"image {image}, gt_boxes {gt_boxes}")
-        # proposals = torch.tensor([[50, 50, 150, 150],
-        #                           [200, 200, 300, 300],
-        #                           [120, 120, 180, 180]], dtype=torch.float32)
+        
         #change to numpy fro PIL image
         image = image.convert("RGB")
         image_np = np.array(image)
         proposals,image_with_boxes = selective_search_regions(image_np)  # or edgeboxes(image_np)
+        # crop image using the proposals
         cv2.imwrite(f"images/selective_search_output_{i}.png", image_with_boxes)
         visualize_best_proposals(image, gt_boxes, proposals, iou_threshold=0.1).save(f"images/visualized_proposals_{i}.png")
+    
     
     

@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from extract_metadata import read_content
 from PIL import ImageDraw
-
+from torchvision import transforms
 class PotholeDataset(Dataset):
     def __init__(self, root_dir="/dtu/datasets1/02516/potholes", transform=None):
         """
@@ -26,18 +26,18 @@ class PotholeDataset(Dataset):
 
     def filter_small_boxes(self, boxes_list, min_size=5):
         filtered_boxes = []
-        
+
         for box in boxes_list:
             x_min, y_min, x_max, y_max = box
-            
+
             # Calculate width and height
             width = x_max - x_min
             height = y_max - y_min
-            
+
             # Check if both dimensions meet or exceed the minimum size
             if width >= min_size and height >= min_size:
                 filtered_boxes.append(box)
-                
+
         return filtered_boxes
 
     def __getitem__(self, idx):
@@ -97,6 +97,46 @@ def draw_boxes(image, boxes, colors=None, width=3):
 
     return img
 
+class PotholeCropDataset(Dataset):
+    def __init__(self, root_dir="/dtu/datasets1/02516/potholes", transform=None):
+        self.img_dir = os.path.join(root_dir, "images")
+        self.ann_dir = os.path.join(root_dir, "annotations")
+        self.transform = transform
+
+        self.samples = []  # (img_path, box, filename)
+
+        annotation_files = sorted(glob.glob(os.path.join(self.ann_dir, "*.xml")))
+        if len(annotation_files) == 0:
+            raise RuntimeError("No XML annotation files found!")
+
+        for xml_path in annotation_files:
+            filename, boxes = read_content(xml_path)
+            img_path = os.path.join(self.img_dir, filename)
+
+            for box in boxes:
+                self.samples.append((img_path, box, filename))
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img_path, box, filename = self.samples[idx]
+
+        img = Image.open(img_path).convert("RGB")
+
+        xmin, ymin, xmax, ymax = box
+        crop = img.crop((xmin, ymin, xmax, ymax))
+
+        if self.transform:
+            crop = self.transform(crop)
+
+        return {
+            "image": crop,                        # Tensor [3, H, W]
+            "box": torch.tensor(box),             # original box
+            "filename": filename
+        }
+
+
 
 root = "/dtu/datasets1/02516/potholes"
 
@@ -107,11 +147,16 @@ loader = DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=lambda x: x)
 if __name__ == "__main__":
     batch = next(iter(loader))
 
-    for sample in batch:
-        print(sample["filename"], sample["boxes"].shape)
-        sample["image"].save(f"images/sample_{sample['filename']}")
-        img_with_boxes = draw_boxes(sample["image"], sample["boxes"])
-        img_with_boxes.save(f"images/sample_boxes_{sample['filename']}")
+    crop_batch = next(iter(crop_loader))
+    for i, sample in enumerate(crop_batch):
+        print(sample["filename"], sample["box"].shape)
+        sample["image"].save(f"images/crop_sample_{i}_{sample['filename']}")
+
+    # for sample in batch:
+    #     print(sample["filename"], sample["boxes"].shape)
+    #     sample["image"].save(f"images/sample_{sample['filename']}")
+    #     img_with_boxes = draw_boxes(sample["image"], sample["boxes"])
+    #     img_with_boxes.save(f"images/sample_boxes_{sample['filename']}")
 
     # minx = 600
     # miny=600
@@ -122,10 +167,10 @@ if __name__ == "__main__":
     #         #print the size of the boxes.
     #         boxes = sample['boxes']
     #         file = sample['filename']
-    
+
     #         for box in boxes:
     #             horizontal_diff = abs(box[2] - box[0])
-            
+
     #             vertical_diff = abs(box[3] - box[1])
     #             if horizontal_diff < minx and horizontal_diff > 1:
     #                 minx = horizontal_diff
@@ -140,5 +185,5 @@ if __name__ == "__main__":
     # img2 = draw_boxes(img,bbox)
     # img2.save('image123.png')
 
-    # print(minx,miny)    
+    # print(minx,miny)
     # print(filename)
