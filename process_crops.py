@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from extract_metadata import read_content
-
+import torchvision.transforms as transforms
 def pairwise_iou(gt_boxes, prop_boxes):
     A = gt_boxes[:, None, :]
     B = prop_boxes[None, :, :]
@@ -156,7 +156,7 @@ class SelectiveSearchCropDataset(Dataset):
 from torch.utils.data import Dataset
 import glob
 from torchvision import transforms
-class SavedCropDataset(Dataset):
+class CropDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         """
         root_dir/
@@ -164,8 +164,8 @@ class SavedCropDataset(Dataset):
                 *.png
             labels.csv
         """
-        self.image_dir = os.path.join(root_dir, "images")
         self.labels_path = os.path.join(root_dir, "labels.csv")
+        self.image_dir = os.path.join(root_dir, "images")
 
         self.transform = transform or transforms.Compose([
             transforms.ToTensor()
@@ -196,10 +196,40 @@ class SavedCropDataset(Dataset):
 
         return image, label
 
+def cropDataLoader(batch_size=64, transform =None, train_ratio =0.7, val_ratio=0.15, test_ratio=0.15):
+    if transform is None:
+        transform =[]
+    size = 160
+    
+    train_transforms = transforms.Compose([
+        transforms.Resize((size, size)),
+        *transform,
+        transforms.ToTensor(),
+    ])
+    test_transforms = transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.ToTensor(),
+    ])
+    
+    total_len = len(CropDataset("./ss_crops"))
+    train_len = int(total_len * train_ratio)
+    val_len = int(total_len * val_ratio)
+    test_len = total_len - train_len - val_len
+    dataset = CropDataset("./ss_crops", transform=None)
+    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_len, val_len, test_len])
+    
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    return (train_loader, val_loader, test_loader), (train_set, val_set, test_set)
+    
 
 if __name__ == "__main__":
-    dataset = SavedCropDataset("ss_crops")
+    dataset = CropDataset("./ss_crops")
 
+    (train_loader, val_loader, test_loader), (train_set, val_set, test_set) = cropDataLoader(batch_size=32)
+    import pdb;pdb.set_trace()
+    img,label = next(iter(train_loader))
     print(f"Dataset size: {len(dataset)}")
 
     img, label = dataset[0]
