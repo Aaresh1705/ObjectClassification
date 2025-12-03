@@ -4,43 +4,57 @@ from torchvision.models import vgg16
 from torchvision.models import VGG16_Weights
 
 
-def get_vgg16_model(pretrained: bool=False, custom_weights: str='') -> nn.Module:
-    """
-    Returns the VGG16 model
-    :param pretrained: Loads the pretrained model if True
-    :param custom_weights: If pretrained is False and custom_weights are given then they will be loaded into the model.
-    :return: The VGG16 model
-    """
+class VGG16Detector(nn.Module):
+    def __init__(self, num_classes=2, pretrained=False):
+        super().__init__()
 
-    def get_model(weights) -> nn.Module:
-        model = vgg16(weights=weights)
-        # print(model.features)
-        # print(model.classifier)
+        # Load VGG16 backbone
+        if pretrained:
+            self.backbone = vgg16(weights=VGG16_Weights.DEFAULT)
+        else:
+            self.backbone = vgg16(weights=None)
 
-        model.classifier[0] = nn.Linear(25088, 4096)
-        model.classifier[6] = nn.Linear(in_features=4096, out_features=2)
+        # Freeze feature extractor if pretrained
+        for param in self.backbone.features.parameters():
+            param.requires_grad = not pretrained
 
-        for param in model.classifier.parameters():
-            param.requires_grad = True
+        # Replace the classifier (fc layers)
+        # We keep fc1 + fc2, but remove fc3
+        in_features = self.backbone.classifier[0].in_features
 
-        return model
+        self.backbone.classifier = nn.Sequential(
+            nn.Linear(12800, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
 
-    if pretrained:
-        model = get_model(weights=VGG16_Weights.DEFAULT)
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Dropout(),
+        )
 
-        for param in model.features.parameters():
-            param.requires_grad = False
-    else:
-        model = get_model(weights=None)
+        # ---- Two Heads ----
 
-        for param in model.features.parameters():
-            param.requires_grad = True
+        # 1. Classification head
+        self.classifier_head = nn.Linear(4096, num_classes)
 
-    if custom_weights != '':
-        model.load_state_dict(torch.load(custom_weights, weights_only=True))
-        print('Loaded custom weights:', custom_weights)
+        # 2. Bounding box regression head
+        # Regression to 4 numbers: [x, y, w, ]
+        self.bbox_head = nn.Linear(4096, 4)
 
-    return model
+    def forward(self, x):
+        x = self.backbone.features(x)
+        x = torch.flatten(x, 1)
+        x = self.backbone.classifier(x)
+
+        class_logits = self.classifier_head(x)
+        bbox = self.bbox_head(x)
+
+        return class_logits, bbox
+
+
+def get_vgg16_model(pretrained: bool=False, num_classes: int=2) -> nn.Module:
+    return VGG16Detector(num_classes=num_classes, pretrained=pretrained)
+
 
 if __name__ == '__main__':
     get_vgg16_model(pretrained=True)
