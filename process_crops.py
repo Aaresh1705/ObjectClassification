@@ -82,7 +82,10 @@ class SelectiveSearchCropDataset(Dataset):
     def __getitem__(self, idx):
         xml_path = self.xmls[idx]
         filename, gt_boxes = read_content(xml_path)
-
+        #if filename ends with a number bigger than 458 skip it
+        filename_no_ext = os.path.splitext(filename)[0]
+        if int(''.join(filter(str.isdigit, filename_no_ext))) > 458:
+            return None
         image_path = os.path.join(self.img_dir, filename)
         image_pil = Image.open(image_path).convert("RGB")
         image_np = np.array(image_pil)
@@ -96,7 +99,9 @@ class SelectiveSearchCropDataset(Dataset):
 
         ious = pairwise_iou(gt_boxes, prop_boxes)
         max_ious, _ = ious.max(dim=0)
-
+        #save the dimensions of the closest gt box for each proposal
+        closest_gt_boxes = gt_boxes[ious.argmax(dim=0)]
+        
         labels = (max_ious >= self.pos_iou).int()
 
         pos_idx = torch.where(labels == 1)[0]
@@ -139,19 +144,12 @@ class SelectiveSearchCropDataset(Dataset):
 
                 crop.save(out_path)
                 # also write the box positions and iou to csv
-                writer.writerow([out_name, label, iou, x1, y1, x2, y2])
+                # also write the gt box positions and iou to csv
+                writer.writerow([out_name, label, iou, x1, y1, x2, y2, closest_gt_boxes[j].tolist()])
 
         return None
 
-#THIS RECREATES THE DATASET USING SELECTIVE SEARCH AND SAVES THE CROPS TO DISK
-    # dataset = SelectiveSearchCropDataset(
-    #     root_dir="/dtu/datasets1/02516/potholes",
-    #     out_dir="ss_crops",
-    #     pos_iou=0.5
-    # )
 
-    # for _ in dataset:
-    #     pass  # generation side effects
 
 from torch.utils.data import Dataset
 import glob
@@ -170,8 +168,10 @@ class CropDataset(Dataset):
         self.transform = transform or transforms.Compose([
             transforms.ToTensor()
         ])
-
+        
         self.samples = []
+        self.gt_boxes = []
+        self.proposed_boxes = []
 
         # Load CSV
         with open(self.labels_path, newline="") as f:
@@ -180,6 +180,10 @@ class CropDataset(Dataset):
                 self.samples.append(
                     (row["filename"], int(row["label"]))
                 )
+                self.gt_boxes.append([float(x) for x in row["gt_box"].strip("[]").split(",")])
+                self.proposed_boxes.append([float(row["x1"]), float(row["y1"]), float(row["x2"]), float(row["y2"])])
+                
+                
 
         print(f"Loaded {len(self.samples)} samples")
 
@@ -194,7 +198,7 @@ class CropDataset(Dataset):
 
         image = self.transform(image)
 
-        return image, label
+        return image, label, torch.tensor(self.gt_boxes[idx]), torch.tensor(self.proposed_boxes[idx])
 
 def cropDataLoader(batch_size=64, transform =None, train_ratio =0.7, val_ratio=0.15, test_ratio=0.15):
     if transform is None:
@@ -216,7 +220,7 @@ def cropDataLoader(batch_size=64, transform =None, train_ratio =0.7, val_ratio=0
     val_len = int(total_len * val_ratio)
     test_len = total_len - train_len - val_len
     dataset = CropDataset("./ss_crops", transform=None)
-    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_len, val_len, test_len], generator=torch.Generator().manual_seed(42))
+    train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_len, val_len, test_len])
     
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False)
@@ -225,9 +229,21 @@ def cropDataLoader(batch_size=64, transform =None, train_ratio =0.7, val_ratio=0
     
 
 if __name__ == "__main__":
-    # dataset = CropDataset("./ss_crops")
+    
+    # # THIS RECREATES THE DATASET USING SELECTIVE SEARCH AND SAVES THE CROPS TO DISK
+    # dataset = SelectiveSearchCropDataset(
+    #     root_dir="/dtu/datasets1/02516/potholes",
+    #     out_dir="ss_crops",
+    #     pos_iou=0.5
+    # )
+    # for _ in dataset:
+    #     pass  # generation side effects
+    dataset = CropDataset("./ss_crops")
 
     (train_loader, val_loader, test_loader), (train_set, val_set, test_set) = cropDataLoader(batch_size=32)
+    # import pdb;pdb.set_trace()
+    img,label, gt_box, proposed_box = next(iter(train_loader))
+    print(f"Dataset size: {len(dataset)}")
 
-    img, label = next(iter(test_loader))
-    print(label)
+    img, label, gt_box, proposed_box = dataset[0]
+    print(img, label, gt_box, proposed_box)
