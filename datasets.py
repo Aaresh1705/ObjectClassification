@@ -8,14 +8,15 @@ from extract_metadata import read_content
 from PIL import ImageDraw
 from torchvision import transforms
 class PotholeDataset(Dataset):
-    def __init__(self, root_dir="/dtu/datasets1/02516/potholes", transform=None):
+    def __init__(self, root_dir="/dtu/datasets1/02516/potholes", transform=None, test =False):
         """
         root_dir: the path containing 'images' and 'annotations'
         """
         self.img_dir = os.path.join(root_dir, "images")
         self.ann_dir = os.path.join(root_dir, "annotations")
         self.transform = transform
-
+        self.test = test
+        
         # Collect all XML files
         self.annotation_files = sorted(glob.glob(os.path.join(self.ann_dir, "*.xml")))
         if len(self.annotation_files) == 0:
@@ -54,7 +55,10 @@ class PotholeDataset(Dataset):
 
         # Convert boxes to tensor
         boxes = torch.tensor(boxes, dtype=torch.float32)
-
+        # If test mode, only return image, filename and boxes with filename over 459
+        filename_no_ext = os.path.splitext(filename)[0]
+        if self.test and int(''.join(filter(str.isdigit, filename_no_ext))) <= 459:
+            return None
 
         # Return sample
         sample = {
